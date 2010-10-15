@@ -619,12 +619,11 @@ public class DroidGap extends Activity {
         			return super.onKeyDown(keyCode, event);
         		}
         	}
-        }
-        
-        if (keyCode == KeyEvent.KEYCODE_MENU) 
-        {
+        } else if (keyCode == KeyEvent.KEYCODE_MENU) {
         	// This is where we launch the menu
         	appView.loadUrl("javascript:keyEvent.menuTrigger()");
+        } else if (keyCode == KeyEvent.KEYCODE_SEARCH) {
+            appView.loadUrl("javascript:keyEvent.searchTrigger()");
         }
         return false;
     }
