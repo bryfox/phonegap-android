@@ -1,3 +1,10 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 package com.phonegap;
 
 import org.apache.http.client.methods.HttpGet;
@@ -5,6 +12,7 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import com.phonegap.api.PhonegapActivity;
 import com.phonegap.api.Plugin;
 import com.phonegap.api.PluginResult;
 
@@ -31,7 +39,7 @@ public class NetworkManager extends Plugin {
 	 * 
 	 * @param ctx The context of the main Activity.
 	 */
-	public void setContext(DroidGap ctx) {
+	public void setContext(PhonegapActivity ctx) {
 		super.setContext(ctx);
 		this.sockMan = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
 	}

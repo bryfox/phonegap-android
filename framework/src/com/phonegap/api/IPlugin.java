@@ -1,7 +1,13 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 package com.phonegap.api;
 
 import org.json.JSONArray;
-import com.phonegap.DroidGap;
 import android.content.Intent;
 import android.webkit.WebView;
 
@@ -36,7 +42,7 @@ public interface IPlugin {
 	 * 
 	 * @param ctx The context of the main Activity.
 	 */
-	void setContext(DroidGap ctx);
+	void setContext(PhonegapActivity ctx);
 
 	/**
 	 * Sets the main View of the application, this is the WebView within which 

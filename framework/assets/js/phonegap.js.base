@@ -1,3 +1,11 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
+
 
 /**
  * The order of events during page load and PhoneGap startup is as follows:
@@ -230,7 +238,14 @@ PhoneGap.onDeviceReady = new PhoneGap.Channel('onDeviceReady');
 PhoneGap.Channel.join(function() {
 
     // Start listening for XHR callbacks
-    PhoneGap.JSCallback();
+    setTimeout(function() {
+            if (CallbackServer.usePolling()) {
+                PhoneGap.JSCallbackPolling();
+            }
+            else {
+                PhoneGap.JSCallback();
+            }
+        }, 1);
 
     // Run PhoneGap constructors
     PhoneGap.onPhoneGapInit.fire();
@@ -271,7 +286,7 @@ document.addEventListener = function(evt, handler, capture) {
     } else if (e == 'pause') {
         PhoneGap.onPause.subscribe(handler);
     } else {
-        PhoneGap.m_document_addEventListener.call(document, evt, handler);
+        PhoneGap.m_document_addEventListener.call(document, evt, handler, capture);
     }
 };
 
@@ -367,35 +382,19 @@ PhoneGap.clone = function(obj) {
 
 PhoneGap.callbackId = 0;
 PhoneGap.callbacks = {};
+PhoneGap.callbackStatus = {
+    NO_RESULT: 0,
+    OK: 1,
+    CLASS_NOT_FOUND_EXCEPTION: 2,
+    ILLEGAL_ACCESS_EXCEPTION: 3,
+    INSTANTIATION_EXCEPTION: 4,
+    MALFORMED_URL_EXCEPTION: 5,
+    IO_EXCEPTION: 6,
+    INVALID_ACTION: 7,
+    JSON_EXCEPTION: 8,
+    ERROR: 9
+    };
 
-/**
- * Execute a PhoneGap command in a queued fashion, to ensure commands do not
- * execute with any race conditions, and only run when PhoneGap is ready to
- * recieve them.
- * @param {String} command Command to be run in PhoneGap, e.g. "ClassName.method"
- * @param {String[]} [args] Zero or more arguments to pass to the method
- */
-// TODO: Not used anymore, should be removed.
-PhoneGap.exec = function(clazz, action, args) {
-    try {
-        var callbackId = 0;
-        var r = PluginManager.exec(clazz, action, callbackId, this.stringify(args), false);
-        eval("var v="+r+";");
-        
-        // If status is OK, then return value back to caller
-        if (v.status == 0) {
-            return v.message;
-        }
-
-        // If error, then display error
-        else {
-            console.log("Error: Status="+r.status+" Message="+v.message);
-            return null;
-        }
-    } catch (e) {
-        console.log("Error: "+e);
-    }
-};
 
 /**
  * Execute a PhoneGap command.  It is up to the native side whether this action is synch or async.  
@@ -411,7 +410,7 @@ PhoneGap.exec = function(clazz, action, args) {
  * @param {String} action       Action to be run in PhoneGap
  * @param {String[]} [args]     Zero or more arguments to pass to the method
  */
-PhoneGap.execAsync = function(success, fail, service, action, args) {
+PhoneGap.exec = function(success, fail, service, action, args) {
     try {
         var callbackId = service + PhoneGap.callbackId++;
         if (success || fail) {
@@ -426,14 +425,32 @@ PhoneGap.execAsync = function(success, fail, service, action, args) {
             eval("var v="+r+";");
         
             // If status is OK, then return value back to caller
-            if (v.status == 0) {
+            if (v.status == PhoneGap.callbackStatus.OK) {
 
                 // If there is a success callback, then call it now with returned value
                 if (success) {
-                    success(v.message);
-                    delete PhoneGap.callbacks[callbackId];
+                    try {
+                        success(v.message);
+                    }
+                    catch (e) {
+                        console.log("Error in success callback: "+callbackId+" = "+e);
+                    }
+
+                    // Clear callback if not expecting any more results
+                    if (!v.keepCallback) {
+                        delete PhoneGap.callbacks[callbackId];
+                    }
                 }
                 return v.message;
+            }
+
+            // If no result
+            else if (v.status == PhoneGap.callbackStatus.NO_RESULT) {
+                    
+                // Clear callback if not expecting any more results
+                if (!v.keepCallback) {
+                    delete PhoneGap.callbacks[callbackId];
+                }
             }
 
             // If error, then display error
@@ -442,8 +459,17 @@ PhoneGap.execAsync = function(success, fail, service, action, args) {
 
                 // If there is a fail callback, then call it now with returned value
                 if (fail) {
-                    fail(v.message);
-                    delete PhoneGap.callbacks[callbackId];
+                    try {
+                        fail(v.message);
+                    }
+                    catch (e) {
+                        console.log("Error in error callback: "+callbackId+" = "+e);
+                    }
+
+                    // Clear callback if not expecting any more results
+                    if (!v.keepCallback) {
+                        delete PhoneGap.callbacks[callbackId];
+                    }
                 }
                 return null;
             }
@@ -461,15 +487,23 @@ PhoneGap.execAsync = function(success, fail, service, action, args) {
  */
 PhoneGap.callbackSuccess = function(callbackId, args) {
     if (PhoneGap.callbacks[callbackId]) {
-        try {
-            if (PhoneGap.callbacks[callbackId].success) {
-                PhoneGap.callbacks[callbackId].success(args.message);
+
+        // If result is to be sent to callback
+        if (args.status == PhoneGap.callbackStatus.OK) {
+            try {
+                if (PhoneGap.callbacks[callbackId].success) {
+                    PhoneGap.callbacks[callbackId].success(args.message);
+                }
+            }
+            catch (e) {
+                console.log("Error in success callback: "+callbackId+" = "+e);
             }
         }
-        catch (e) {
-            console.log("Error in success callback: "+callbackId+" = "+e);
+    
+        // Clear callback if not expecting any more results
+        if (!args.keepCallback) {
+            delete PhoneGap.callbacks[callbackId];
         }
-        delete PhoneGap.callbacks[callbackId];
     }
 };
 
@@ -489,7 +523,11 @@ PhoneGap.callbackError = function(callbackId, args) {
         catch (e) {
             console.log("Error in error callback: "+callbackId+" = "+e);
         }
-        delete PhoneGap.callbacks[callbackId];
+        
+        // Clear callback if not expecting any more results
+        if (!args.keepCallback) {
+            delete PhoneGap.callbacks[callbackId];
+        }
     }
 };
 
@@ -540,6 +578,9 @@ PhoneGap.run_command = function() {
 
 };
 
+PhoneGap.JSCallbackPort = null;
+PhoneGap.JSCallbackToken = null;
+
 /**
  * This is only for Android.
  *
@@ -563,6 +604,8 @@ PhoneGap.JSCallback = function() {
                         var t = eval(msg);
                     }
                     catch (e) {
+                        // If we're getting an error here, seeing the message will help in debugging
+                        console.log("JSCallback: Message from Server: " + msg);
                         console.log("JSCallback Error: "+e);
                     }
                 }, 1);
@@ -574,17 +617,72 @@ PhoneGap.JSCallback = function() {
                 setTimeout(PhoneGap.JSCallback, 10);
             }
 
+            // If security error
+            else if (xmlhttp.status == 403) {
+                console.log("JSCallback Error: Invalid token.  Stopping callbacks.");
+            }
+
+            // If server is stopping
+            else if (xmlhttp.status == 503) {
+                console.log("JSCallback Error: Service unavailable.  Stopping callbacks.");
+            }
+
+            // If request wasn't GET
+            else if (xmlhttp.status == 400) {
+                console.log("JSCallback Error: Bad request.  Stopping callbacks.");
+            }
+
             // If error, restart callback server
             else {
                 console.log("JSCallback Error: Request failed.");
                 CallbackServer.restartServer();
+                PhoneGap.JSCallbackPort = null;
+                PhoneGap.JSCallbackToken = null;
                 setTimeout(PhoneGap.JSCallback, 100);
             }
         }
     }
 
-    xmlhttp.open("GET", "http://127.0.0.1:"+CallbackServer.getPort()+"/" , true);
+    if (PhoneGap.JSCallbackPort == null) {
+        PhoneGap.JSCallbackPort = CallbackServer.getPort();
+    }
+    if (PhoneGap.JSCallbackToken == null) {
+        PhoneGap.JSCallbackToken = CallbackServer.getToken();
+    }
+    xmlhttp.open("GET", "http://127.0.0.1:"+PhoneGap.JSCallbackPort+"/"+PhoneGap.JSCallbackToken , true);
     xmlhttp.send();
+};
+
+/**
+ * The polling period to use with JSCallbackPolling.
+ * This can be changed by the application.  The default is 50ms.
+ */
+PhoneGap.JSCallbackPollingPeriod = 50;
+
+/**
+ * This is only for Android.
+ *
+ * Internal function that uses polling to call into PhoneGap Java code and retrieve 
+ * any JavaScript code that needs to be run.  This is used for callbacks from
+ * Java to JavaScript.
+ */
+PhoneGap.JSCallbackPolling = function() {
+    var msg = CallbackServer.getJavascript();
+    if (msg) {
+        setTimeout(function() {
+            try {
+                var t = eval(""+msg);
+            }
+            catch (e) {
+                console.log("JSCallbackPolling: Message from Server: " + msg);
+                console.log("JSCallbackPolling Error: "+e);
+            }
+        }, 1);
+        setTimeout(PhoneGap.JSCallbackPolling, 1);
+    }
+    else {
+        setTimeout(PhoneGap.JSCallbackPolling, PhoneGap.JSCallbackPollingPeriod);
+    }
 };
 
 /**
@@ -624,3 +722,19 @@ PhoneGap.close = function(context, func, params) {
     }
 };
 
+/**
+ * Load a JavaScript file after page has loaded.
+ *
+ * @param {String} jsfile               The url of the JavaScript file to load.
+ * @param {Function} successCallback    The callback to call when the file has been loaded.
+ */
+PhoneGap.includeJavascript = function(jsfile, successCallback) {
+    var id = document.getElementsByTagName("head")[0];         
+    var el = document.createElement('script');
+    el.type = 'text/javascript';
+    if (typeof successCallback == 'function') {
+        el.onload = successCallback;
+    }
+    el.src = jsfile;
+    id.appendChild(el);
+}

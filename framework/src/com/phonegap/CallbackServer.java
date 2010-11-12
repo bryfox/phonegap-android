@@ -1,3 +1,10 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 package com.phonegap;
 
 import java.io.BufferedReader;
@@ -10,10 +17,10 @@ import java.util.LinkedList;
 
 /**
  * This class provides a way for Java to run JavaScript in the web page that has loaded PhoneGap.
- * The CallbackServer class implements an XHR server and a list of JavaScript statements
- * that are to be executed on the web page.
+ * The CallbackServer class implements an XHR server and a polling server with a list of JavaScript
+ * statements that are to be executed on the web page.
  * 
- * The process flow is:
+ * The process flow for XHR is:
  * 1. JavaScript makes an async XHR call. 
  * 2. The server holds the connection open until data is available. 
  * 3. The server writes the data to the client and closes the connection. 
@@ -21,6 +28,16 @@ import java.util.LinkedList;
  * 5. The client receives this XHR response, processes it.
  * 6. The client sends a new async XHR request.
  *
+ * The CallbackServer class requires the following permission in Android manifest file
+ * 		<uses-permission android:name="android.permission.INTERNET" />
+ * 
+ * If the device has a proxy set, then XHR cannot be used, so polling must be used instead.
+ * This can be determined by the client by calling CallbackServer.usePolling().  
+ * 
+ * The process flow for polling is:
+ * 1. The client calls CallbackServer.getJavascript() to retrieve next statement.
+ * 2. If statement available, then client processes it.
+ * 3. The client repeats #1 in loop. 
  */
 public class CallbackServer implements Runnable {
 	
@@ -50,6 +67,16 @@ public class CallbackServer implements Runnable {
 	private boolean empty;
 	
 	/**
+	 * Indicates that polling should be used instead of XHR.
+	 */
+	private boolean usePolling;
+	
+	/**
+	 * Security token to prevent other apps from accessing this callback server via XHR
+	 */
+	private String token;
+	
+	/**
 	 * Constructor.
 	 */
 	public CallbackServer() {
@@ -57,8 +84,42 @@ public class CallbackServer implements Runnable {
 		this.active = false;
 		this.empty = true;
 		this.port = 0;
-		this.javascript = new LinkedList<String>();
-		this.startServer();
+		this.javascript = new LinkedList<String>();		
+	}
+	
+	/**
+	 * Init callback server and start XHR if running local app.
+	 * 
+	 * If PhoneGap app is loaded from file://, then we can use XHR
+	 * otherwise we have to use polling due to cross-domain security restrictions.
+	 * 
+	 * @param url			The URL of the PhoneGap app being loaded
+	 */
+	public void init(String url) {
+		//System.out.println("CallbackServer.start("+url+")");
+
+		// Determine if XHR or polling is to be used
+		if ((url != null) && !url.startsWith("file://")) {
+			this.usePolling = true;
+			this.stopServer();
+		}
+		else if (android.net.Proxy.getDefaultHost() != null) {
+			this.usePolling = true;
+			this.stopServer();
+		}
+		else {
+			this.usePolling = false;
+			this.startServer();
+		}
+	}
+	
+	/**
+	 * Return if polling is being used instead of XHR.
+	 * 
+	 * @return
+	 */
+	public boolean usePolling() {
+		return this.usePolling;
 	}
 	
 	/**
@@ -68,6 +129,15 @@ public class CallbackServer implements Runnable {
 	 */
 	public int getPort() {
 		return this.port;
+	}
+	
+	/**
+	 * Get the security token that this server requires when calling getJavascript().
+	 * 
+	 * @return
+	 */
+	public String getToken() {
+		return this.token;
 	}
 	
 	/**
@@ -106,7 +176,9 @@ public class CallbackServer implements Runnable {
 			String request;
 			ServerSocket waitSocket = new ServerSocket(0);
 			this.port = waitSocket.getLocalPort();
-			//System.out.println(" -- using port " +this.port);
+			//System.out.println("CallbackServer -- using port " +this.port);
+			this.token = java.util.UUID.randomUUID().toString();
+			//System.out.println("CallbackServer -- using token "+this.token);
 
 			 while (this.active) {
 				 //System.out.println("CallbackServer: Waiting for data on socket");
@@ -114,39 +186,55 @@ public class CallbackServer implements Runnable {
 				 BufferedReader xhrReader = new BufferedReader(new InputStreamReader(connection.getInputStream()),40);
 				 DataOutputStream output = new DataOutputStream(connection.getOutputStream());
 				 request = xhrReader.readLine();
-				 //System.out.println("Request="+request);
-				 if(request.contains("GET"))
-				 {
-					 //System.out.println(" -- Processing GET request");
-					 
-					 // Wait until there is some data to send, or send empty data every 30 sec 
-					 // to prevent XHR timeout on the client 
-					 synchronized (this) { 
-						 while (this.empty) { 
-							 try { 
-								 this.wait(30000); // prevent timeout from happening
-								 //System.out.println(">>> break <<<");
-								 break;
+				 String response = "";
+				 //System.out.println("CallbackServerRequest="+request);
+				 if (request.contains("GET")) {
+
+					 // Must have security token
+					 if (request.substring(5,41).equals(this.token)) {
+						 //System.out.println("CallbackServer -- Processing GET request");
+
+						 // Wait until there is some data to send, or send empty data every 10 sec 
+						 // to prevent XHR timeout on the client 
+						 synchronized (this) { 
+							 while (this.empty) { 
+								 try { 
+									 this.wait(10000); // prevent timeout from happening
+									 //System.out.println("CallbackServer>>> break <<<");
+									 break;
+								 } 
+								 catch (Exception e) { }
 							 } 
-							 catch (Exception e) { }
-						 } 
-					 }
-					 
-					 // If server is still running
-					 if (this.active) {
-					
-						 // If no data, then send 404 back to client before it times out
-						 if (this.empty) {
-							 //System.out.println(" -- sending data 0");
-							 output.writeBytes("HTTP/1.1 404 NO DATA\r\n\r\n");
+						 }
+
+						 // If server is still running
+						 if (this.active) {
+
+							 // If no data, then send 404 back to client before it times out
+							 if (this.empty) {
+								 //System.out.println("CallbackServer -- sending data 0");
+								 response = "HTTP/1.1 404 NO DATA\r\n\r\n "; // need to send content otherwise some Android devices fail, so send space
+							 }
+							 else {
+								 //System.out.println("CallbackServer -- sending item");
+								 response = "HTTP/1.1 200 OK\r\n\r\n"+this.getJavascript();
+							 }
 						 }
 						 else {
-							 //System.out.println(" -- sending item");
-							 output.writeBytes("HTTP/1.1 200 OK\r\n\r\n"+this.getJavascript());
+							 response = "HTTP/1.1 503 Service Unavailable\r\n\r\n ";							 
 						 }
-					 }					 
+					 }
+					 else {
+						 response = "HTTP/1.1 403 Forbidden\r\n\r\n ";						 
+					 }
 				 }
+				 else {
+					 response = "HTTP/1.1 400 Bad Request\r\n\r\n ";
+				 }
+				 //System.out.println("CallbackServer: response="+response);
 				 //System.out.println("CallbackServer: closing output");
+				 output.writeBytes(response);
+				 output.flush();
 				 output.close();				 
 			 }
 		 } catch (IOException e) {
@@ -162,11 +250,13 @@ public class CallbackServer implements Runnable {
 	 */
 	public void stopServer() {
 		//System.out.println("CallbackServer.stopServer()");
-		this.active = false;
+		if (this.active) {
+			this.active = false;
 
-		// Break out of server wait
-		synchronized (this) { 
-			this.notify();
+			// Break out of server wait
+			synchronized (this) { 
+				this.notify();
+			}
 		}		
 	}
 

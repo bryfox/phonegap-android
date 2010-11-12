@@ -1,33 +1,12 @@
-package com.phonegap;
-/* License (MIT)
- * Copyright (c) 2008 Nitobi
- * website: http://phonegap.com
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * Software), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
  * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
- * LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
- * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
- * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
  */
+package com.phonegap;
 
-
-
-import com.phonegap.api.Plugin;
-import com.phonegap.api.PluginManager;
-
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -52,6 +31,9 @@ import android.webkit.GeolocationPermissions.Callback;
 import android.webkit.WebSettings.LayoutAlgorithm;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import com.phonegap.api.Plugin;
+import com.phonegap.api.PluginManager;
+import com.phonegap.api.PhonegapActivity;
 
 /**
  * This class is the main Android activity that represents the PhoneGap
@@ -69,17 +51,29 @@ import android.widget.LinearLayout;
  *       @Override
  *       public void onCreate(Bundle savedInstanceState) {
  *         super.onCreate(savedInstanceState);
+ *         
+ *         // Initialize activity
+ *         super.init();
+ *         
+ *         // Set properties for activity
+ *         super.setProperty("loadingDialog", false); // hide loading dialog (default is to show it)
+ *         
+ *         // Add your plugins here or in JavaScript
+ *         super.addService("MyService", "com.phonegap.examples.MyService");
+ *         
+ *         // Clear cache if you want
+ *         super.appView.clearCache(true);
+ *         
+ *         // Load your application
  *         super.loadUrl("file:///android_asset/www/index.html");
  *       }
  *     }
  */
-public class DroidGap extends Activity {
+public class DroidGap extends PhonegapActivity {
 
     private static final String LOG_TAG = "DroidGap";
 
     protected WebView appView;					// The webview for our app
-	protected ImageView splashScreen;
-	protected Boolean loadInWebView = false;
     private LinearLayout root;
 
     private BrowserKey mKey;
@@ -89,48 +83,53 @@ public class DroidGap extends Activity {
     private String url;							// The initial URL for our app
     private String baseUrl;						// The base of the initial URL for our app
 
-    private Plugin activityResultCallback = null;	// Plugin to call when activity result is received
-         
+    // Plugin to call when activity result is received
+    private Plugin activityResultCallback = null;
+    
+    // Flag indicates that "app loading" dialog should be hidden once page is loaded.
+    // The default is to hide it once PhoneGap JavaScript code has initialized.
+    protected boolean hideLoadingDialogOnPageLoad = false;	
+
+    // Flag indicates that a URL navigated to from PhoneGap app should be loaded into same webview
+    // instead of being loaded into the web browser.  
+	protected boolean loadInWebView = false;
+
+	// Splash screen drawable resource to display when starting app
+	protected int splashscreen = 0;
+
     /** 
      * Called when the activity is first created. 
      * 
      * @param savedInstanceState
      */
-	@Override
+    @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    	super.onCreate(savedInstanceState);
+    	getWindow().requestFeature(Window.FEATURE_NO_TITLE);
+    	getWindow().setFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN,
+    			WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+    	// This builds the view.  We could probably get away with NOT having a LinearLayout, but I like having a bucket!
 
-        getWindow().requestFeature(Window.FEATURE_NO_TITLE); 
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN,
-                WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN); 
-        // This builds the view.  We could probably get away with NOT having a LinearLayout, but I like having a bucket!
+    	root = new LinearLayout(this);
+    	root.setOrientation(LinearLayout.VERTICAL);
+    	root.setBackgroundColor(Color.BLACK);
+    	root.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT, 
+    			ViewGroup.LayoutParams.FILL_PARENT, 0.0F));
 
-        root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.BLACK);
-        root.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT, 
-        		ViewGroup.LayoutParams.FILL_PARENT, 0.0F));
-
-        /*
-        splashScreen = new ImageView(this);
-        splashScreen.setLayoutParams(new LinearLayout.LayoutParams(
-        		ViewGroup.LayoutParams.FILL_PARENT,
-        		ViewGroup.LayoutParams.FILL_PARENT, 
-        		1.0F));
-        splashScreen.setImageResource(R.drawable.splash);
-      
-        root.addView(splashScreen);
- 		*/
-
-        initWebView();
-        root.addView(this.appView);
-        setContentView(root);        
-	}
-	
+    	// If url was passed in to intent, then init webview, which will load the url
+    	Bundle bundle = this.getIntent().getExtras();
+    	if (bundle != null) {
+    		String url = bundle.getString("url");
+    		if (url != null) {
+    			this.init();
+    		}
+    	}
+    }
+    
     /**
      * Create and initialize web container.
      */
-	private void initWebView() {
+	public void init() {
 		
 		// Create web container
 		this.appView = new WebView(DroidGap.this);
@@ -174,19 +173,252 @@ public class DroidGap extends Activity {
 
         // Bind PhoneGap objects to JavaScript
         this.bindBrowser(this.appView);
-	}
 
+        // Add web view
+        root.addView(this.appView);
+        setContentView(root);
+        
+        // Handle activity parameters
+        this.handleActivityParameters();
+	}
 	
-	@Override
+    /**
+     * Bind PhoneGap objects to JavaScript.
+     * 
+     * @param appView
+     */
+	private void bindBrowser(WebView appView) {
+
+		this.callbackServer = new CallbackServer();
+		this.pluginManager = new PluginManager(appView, this);
+		this.mKey = new BrowserKey(appView, this);
+
+		// This creates the new javascript interfaces for PhoneGap
+		appView.addJavascriptInterface(this.pluginManager, "PluginManager");
+
+		appView.addJavascriptInterface(this.mKey, "BackButton");
+
+		appView.addJavascriptInterface(this.callbackServer, "CallbackServer");
+		appView.addJavascriptInterface(new SplashScreen(this), "SplashScreen");
+
+		this.addService("Geolocation", "com.phonegap.GeoBroker");
+		this.addService("Device", "com.phonegap.Device");
+		this.addService("Accelerometer", "com.phonegap.AccelListener");
+		this.addService("Compass", "com.phonegap.CompassListener");
+		this.addService("Media", "com.phonegap.AudioHandler");
+		this.addService("Camera", "com.phonegap.CameraLauncher");
+		this.addService("Contacts", "com.phonegap.ContactManager");
+		this.addService("Crypto", "com.phonegap.CryptoHandler");
+		this.addService("File", "com.phonegap.FileUtils");
+		this.addService("Location", "com.phonegap.GeoBroker");	// Always add Location, even though it is built-in on 2.x devices. Let JavaScript decide which one to use.
+		this.addService("Network Status", "com.phonegap.NetworkManager");
+		this.addService("Notification", "com.phonegap.Notification");
+		this.addService("Storage", "com.phonegap.Storage");
+		this.addService("Temperature", "com.phonegap.TempListener");
+	}
+        
+	/**
+	 * Look at activity parameters and process them.
+	 */
+	private void handleActivityParameters() {
+
+		// If spashscreen
+		this.splashscreen = this.getProperty("splashscreen", 0);
+		if (this.splashscreen != 0) {
+	    	appView.setBackgroundColor(0);
+	    	appView.setBackgroundResource(splashscreen);
+		}
+
+		// If loadingDialog, then show the App loading dialog
+		if (this.getProperty("loadingDialog", true)) {
+			this.pluginManager.exec("Notification", "activityStart", null, "[\"Wait\",\"Loading Application...\"]", false);
+		}
+
+		// If hideLoadingDialogOnPageLoad
+		this.hideLoadingDialogOnPageLoad = this.getProperty("hideLoadingDialogOnPageLoad", false);
+
+		// If loadInWebView
+		this.loadInWebView = this.getProperty("loadInWebView", false);
+
+		// If url specified, then load it
+		String url = this.getProperty("url", null);
+		if (url != null) {
+			System.out.println("Loading initial URL="+url);
+			this.loadUrl(url);        	
+		}
+	}
+	
+    /**
+     * Load the url into the webview.
+     * 
+     * @param url
+     */
+	public void loadUrl(final String url) {
+		System.out.println("loadUrl("+url+")");
+		this.url = url;
+		int i = url.lastIndexOf('/');
+		if (i > 0) {
+			this.baseUrl = url.substring(0, i);
+		}
+		else {
+			this.baseUrl = this.url;
+		}
+		System.out.println("url="+url+" baseUrl="+baseUrl);
+
+		// Init web view if not already done
+		if (this.appView == null) {
+			this.init();
+		}
+
+		// Initialize callback server
+		this.callbackServer.init(url);
+
+		// Load URL on UI thread
+		this.runOnUiThread(new Runnable() {
+			public void run() {
+				DroidGap.this.appView.loadUrl(url);
+			}
+		});
+	}
+	
+    @Override
     /**
      * Called by the system when the device configuration changes while your activity is running. 
      * 
      * @param Configuration newConfig
      */
     public void onConfigurationChanged(Configuration newConfig) {
-        //don't reload the current page when the orientation is changed
-        super.onConfigurationChanged(newConfig);
-    } 
+    	//don't reload the current page when the orientation is changed
+    	super.onConfigurationChanged(newConfig);
+    }
+    
+    /**
+     * Get boolean property for activity.
+     * 
+     * @param name
+     * @param defaultValue
+     * @return
+     */
+    protected boolean getProperty(String name, boolean defaultValue) {
+    	Bundle bundle = this.getIntent().getExtras();
+    	if (bundle == null) {
+    		return defaultValue;
+    	}
+    	Boolean p = (Boolean)bundle.get(name);
+    	if (p == null) {
+    		return defaultValue;
+    	}
+    	return p.booleanValue();
+    }
+
+    /**
+     * Get int property for activity.
+     * 
+     * @param name
+     * @param defaultValue
+     * @return
+     */
+    protected int getProperty(String name, int defaultValue) {
+    	Bundle bundle = this.getIntent().getExtras();
+    	if (bundle == null) {
+    		return defaultValue;
+    	}
+    	Integer p = (Integer)bundle.get(name);
+    	if (p == null) {
+    		return defaultValue;
+    	}
+    	return p.intValue();
+    }
+
+    /**
+     * Get string property for activity.
+     * 
+     * @param name
+     * @param defaultValue
+     * @return
+     */
+    protected String getProperty(String name, String defaultValue) {
+    	Bundle bundle = this.getIntent().getExtras();
+    	if (bundle == null) {
+    		return defaultValue;
+    	}
+    	String p = bundle.getString(name);
+    	if (p == null) {
+    		return defaultValue;
+    	}
+    	return p;
+    }
+
+    /**
+     * Get double property for activity.
+     * 
+     * @param name
+     * @param defaultValue
+     * @return
+     */
+    protected double getProperty(String name, double defaultValue) {
+    	Bundle bundle = this.getIntent().getExtras();
+    	if (bundle == null) {
+    		return defaultValue;
+    	}
+    	Double p = (Double)bundle.get(name);
+    	if (p == null) {
+    		return defaultValue;
+    	}
+    	return p.doubleValue();
+    }
+
+    /**
+     * Set boolean property on activity.
+     * 
+     * @param name
+     * @param value
+     */
+    protected void setProperty(String name, boolean value) {
+    	if (this.appView != null) {
+    		System.out.println("Setting property after webview is already initialized - no effect.");
+    	}
+    	this.getIntent().putExtra(name, value);
+    }
+    
+    /**
+     * Set int property on activity.
+     * 
+     * @param name
+     * @param value
+     */
+    protected void setProperty(String name, int value) {
+    	if (this.appView != null) {
+    		System.out.println("Setting property after webview is already initialized - no effect.");
+    	}
+    	this.getIntent().putExtra(name, value);
+    }
+    
+    /**
+     * Set string property on activity.
+     * 
+     * @param name
+     * @param value
+     */
+    protected void setProperty(String name, String value) {
+    	if (this.appView != null) {
+    		System.out.println("Setting property after webview is already initialized - no effect.");
+    	}
+    	this.getIntent().putExtra(name, value);
+    }
+    
+    /**
+     * Set double property on activity.
+     * 
+     * @param name
+     * @param value
+     */
+    protected void setProperty(String name, double value) {
+    	if (this.appView != null) {
+    		System.out.println("Setting property after webview is already initialized - no effect.");
+    	}
+    	this.getIntent().putExtra(name, value);
+    }
 
     @Override
     /**
@@ -256,67 +488,10 @@ public class DroidGap extends Activity {
     public void addService(String serviceType, String className) {
     	this.pluginManager.addService(serviceType, className);
     }
-
-    /**
-     * Bind PhoneGap objects to JavaScript.
-     * 
-     * @param appView
-     */
-    private void bindBrowser(WebView appView) {
-        this.callbackServer = new CallbackServer();
-    	this.pluginManager = new PluginManager(appView, this);
-        this.mKey = new BrowserKey(appView, this);
-    	
-    	// This creates the new javascript interfaces for PhoneGap
-    	appView.addJavascriptInterface(this.pluginManager, "PluginManager");
-        
-        appView.addJavascriptInterface(this.mKey, "BackButton");
-        
-        appView.addJavascriptInterface(this.callbackServer, "CallbackServer");
-    	appView.addJavascriptInterface(new SplashScreen(this), "SplashScreen");
-
-        
-        this.addService("Geolocation", "com.phonegap.GeoBroker");
-        this.addService("Device", "com.phonegap.Device");
-        this.addService("Accelerometer", "com.phonegap.AccelListener");
-        this.addService("Compass", "com.phonegap.CompassListener");
-        this.addService("Media", "com.phonegap.AudioHandler");
-        this.addService("Camera", "com.phonegap.CameraLauncher");
-        this.addService("Contacts", "com.phonegap.ContactManager");
-        this.addService("Crypto", "com.phonegap.CryptoHandler");
-        this.addService("File", "com.phonegap.FileUtils");
-        this.addService("Location", "com.phonegap.GeoBroker");	// Always add Location, even though it is built-in on 2.x devices. Let JavaScript decide which one to use.
-        this.addService("Network Status", "com.phonegap.NetworkManager");
-        this.addService("Notification", "com.phonegap.Notification");
-        this.addService("Storage", "com.phonegap.Storage");
-        this.addService("Temperature", "com.phonegap.TempListener");
-
-    }
-        
-    /**
-     * Load the url into the webview.
-     * 
-     * @param url
-     */
-    public void loadUrl(final String url) {
-        this.url = url;
-        int i = url.lastIndexOf('/');
-        if (i > 0) {
-        	this.baseUrl = url.substring(0, i);
-        }
-        else {
-        	this.baseUrl = this.url;
-        }
-	    
-	    this.runOnUiThread(new Runnable() {
-			public void run() {
-		        DroidGap.this.appView.loadUrl(url);
-	        }
-        });
-	}
     
     /**
      * Send JavaScript statement back to JavaScript.
+     * (This is a convenience method)
      * 
      * @param message
      */
@@ -413,73 +588,71 @@ public class DroidGap extends Activity {
      * WebChromeClient that extends GapClient with additional support for Android 2.X
      */
     public final class EclairClient extends GapClient {
-        
-		private String TAG = "PhoneGapLog";
-		private long MAX_QUOTA = 100 * 1024 * 1024;
 
-		/**
-		 * Constructor.
-		 * 
-		 * @param ctx
-		 */
-        public EclairClient(Context ctx) {
-            super(ctx);
-        }
+    	private String TAG = "PhoneGapLog";
+    	private long MAX_QUOTA = 100 * 1024 * 1024;
 
-        /**
-         * Handle database quota exceeded notification.
-         *
-         * @param url
-         * @param databaseIdentifier
-         * @param currentQuota
-         * @param estimatedSize
-         * @param totalUsedQuota
-         * @param quotaUpdater
-         */
-        @Override
-		public void onExceededDatabaseQuota(String url, String databaseIdentifier, long currentQuota, long estimatedSize,
-		    	     long totalUsedQuota, WebStorage.QuotaUpdater quotaUpdater)
-		{
-		  Log.d(TAG, "event raised onExceededDatabaseQuota estimatedSize: " + Long.toString(estimatedSize) + " currentQuota: " + Long.toString(currentQuota) + " totalUsedQuota: " + Long.toString(totalUsedQuota));  	
-		  		  
-			if( estimatedSize < MAX_QUOTA)
-		    	{	                                        
-		    	  //increase for 1Mb        		    	  		    	  
-		    		long newQuota = estimatedSize;		    		
-		    		Log.d(TAG, "calling quotaUpdater.updateQuota newQuota: " + Long.toString(newQuota) );  	
-		    		quotaUpdater.updateQuota(newQuota);
-		    	}
-		    else
-		    	{
-		    		// Set the quota to whatever it is and force an error
-		    		// TODO: get docs on how to handle this properly
-		    		quotaUpdater.updateQuota(currentQuota);
-		    	}		    	
-		}		
-		                    
-		// console.log in api level 7: http://developer.android.com/guide/developing/debug-tasks.html
-        @Override
-		public void onConsoleMessage(String message, int lineNumber, String sourceID)
-		{       
-			// This is a kludgy hack!!!!
-			Log.d(TAG, sourceID + ": Line " + Integer.toString(lineNumber) + " : " + message);              
-		}
-		
-		@Override
-		public void onGeolocationPermissionsShowPrompt(String origin, Callback callback) {
-			// TODO Auto-generated method stub
-			super.onGeolocationPermissionsShowPrompt(origin, callback);
-			callback.invoke(origin, true, false);
-		}
-		
-	}
-	
+    	/**
+    	 * Constructor.
+    	 * 
+    	 * @param ctx
+    	 */
+    	public EclairClient(Context ctx) {
+    		super(ctx);
+    	}
+
+    	/**
+    	 * Handle database quota exceeded notification.
+    	 *
+    	 * @param url
+    	 * @param databaseIdentifier
+    	 * @param currentQuota
+    	 * @param estimatedSize
+    	 * @param totalUsedQuota
+    	 * @param quotaUpdater
+    	 */
+    	@Override
+    	public void onExceededDatabaseQuota(String url, String databaseIdentifier, long currentQuota, long estimatedSize,
+    			long totalUsedQuota, WebStorage.QuotaUpdater quotaUpdater)
+    	{
+    		Log.d(TAG, "event raised onExceededDatabaseQuota estimatedSize: " + Long.toString(estimatedSize) + " currentQuota: " + Long.toString(currentQuota) + " totalUsedQuota: " + Long.toString(totalUsedQuota));
+
+    		if( estimatedSize < MAX_QUOTA)
+    		{	                                        
+    			//increase for 1Mb
+    			long newQuota = estimatedSize;		    		
+    			Log.d(TAG, "calling quotaUpdater.updateQuota newQuota: " + Long.toString(newQuota) );
+    			quotaUpdater.updateQuota(newQuota);
+    		}
+    		else
+    		{
+    			// Set the quota to whatever it is and force an error
+    			// TODO: get docs on how to handle this properly
+    			quotaUpdater.updateQuota(currentQuota);
+    		}		    	
+    	}		
+
+    	// console.log in api level 7: http://developer.android.com/guide/developing/debug-tasks.html
+    	@Override
+    	public void onConsoleMessage(String message, int lineNumber, String sourceID)
+    	{       
+    		// This is a kludgy hack!!!!
+    		Log.d(TAG, sourceID + ": Line " + Integer.toString(lineNumber) + " : " + message);              
+    	}
+
+    	@Override
+    	public void onGeolocationPermissionsShowPrompt(String origin, Callback callback) {
+    		// TODO Auto-generated method stub
+    		super.onGeolocationPermissionsShowPrompt(origin, callback);
+    		callback.invoke(origin, true, false);
+    	}
+
+    }
+
     /**
      * The webview client receives notifications about appView
      */
     public class GapViewClient extends WebViewClient {
-
-    	// TODO: hide splash screen here
 
         DroidGap ctx;
 
@@ -502,7 +675,6 @@ public class DroidGap extends Activity {
          */
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-
         	// If dialing phone (tel:5551212)
         	if (url.startsWith(WebView.SCHEME_TEL)) {
         		try {
@@ -516,7 +688,7 @@ public class DroidGap extends Activity {
         	}
         	
         	// If displaying map (geo:0,0?q=address)
-        	else if (url.startsWith(WebView.SCHEME_GEO)) {
+        	else if (url.startsWith("geo:")) {
            		try {
         			Intent intent = new Intent(Intent.ACTION_VIEW);
         			intent.setData(Uri.parse(url));
@@ -596,46 +768,67 @@ public class DroidGap extends Activity {
             // not loaded yet then just set a flag so that the onNativeReady can be fired
             // from the JS side when the JS gets to that code.
     		appView.loadUrl("javascript:try{ PhoneGap.onNativeReady.fire();}catch(e){_nativeReady = true;}");
+
+    		// If splash screen is showing, clear it
+    		if (this.ctx.splashscreen != 0) {
+    			this.ctx.splashscreen = 0;
+    	    	appView.setBackgroundResource(0);
+    		}
+
+    		// Stop "app loading" spinner if showing
+    		if (this.ctx.hideLoadingDialogOnPageLoad) {
+    			this.ctx.hideLoadingDialogOnPageLoad = false;
+    			this.ctx.pluginManager.exec("Notification", "activityStop", null, "[]", false);
+    		}
         }
     }
 
-    public boolean onKeyDown(int keyCode, KeyEvent event)
-    {	
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-        	if (mKey.isBound())
-        	{
-        		//We fire an event here!
-        		appView.loadUrl("javascript:document.keyEvent.backTrigger()");
-        	}
-        	else
-        	{
-        		// only go back if the webview tells you that it is possible to go back
-        		if(appView.canGoBack())
-        		{
-        			appView.goBack();
-        		}
-        		else // if you can't go back, invoke behavior of super class
-        		{
-        			return super.onKeyDown(keyCode, event);
-        		}
-        	}
-        } else if (keyCode == KeyEvent.KEYCODE_MENU) {
-        	// This is where we launch the menu
-        	appView.loadUrl("javascript:keyEvent.menuTrigger()");
-        } else if (keyCode == KeyEvent.KEYCODE_SEARCH) {
-            appView.loadUrl("javascript:keyEvent.searchTrigger()");
-        }
-        return false;
-    }
-	
-    /**
-     * Removes the splash screen from root view and adds the WebView
-     */
-    public void hideSplashScreen() {
-    	root.removeView(splashScreen);
-    	root.addView(this.appView);
-    }
     
+    /**
+     * Called when a key is pressed.
+     * 
+     * @param keyCode
+     * @param event
+     */
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+
+    	// If back key
+    	if (keyCode == KeyEvent.KEYCODE_BACK) {
+
+    		// If back key is bound, then send event to JavaScript
+    		if (mKey.isBound()) {
+    			this.appView.loadUrl("javascript:document.keyEvent.backTrigger()");
+    		}
+
+    		// If not bound
+    		else {
+
+    			// Go to previous page in webview if it is possible to go back
+    			if (this.appView.canGoBack()) {
+    				this.appView.goBack();
+    			}
+
+    			// If not, then invoke behavior of super class
+    			else {
+    				return super.onKeyDown(keyCode, event);
+    			}
+    		}
+    	}
+
+    	// If menu key
+    	else if (keyCode == KeyEvent.KEYCODE_MENU) {
+    		appView.loadUrl("javascript:keyEvent.menuTrigger()");
+    	}
+
+    	// If search key
+    	else if (keyCode == KeyEvent.KEYCODE_SEARCH) {
+    		appView.loadUrl("javascript:keyEvent.searchTrigger()");
+    	}
+
+    	return false;
+    }
+
     /**
      * Any calls to Activity.startActivityForResult must use method below, so 
      * the result can be routed to them correctly.  

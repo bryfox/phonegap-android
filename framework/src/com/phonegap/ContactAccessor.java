@@ -1,5 +1,11 @@
 // Taken from Android Tutorials
-
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 /*
  * Copyright (C) 2009 The Android Open Source Project
  *
@@ -86,18 +92,30 @@ public abstract class ContactAccessor {
         return sInstance;
     }
 	
+    /**
+     * Check to see if the data associated with the key is required to 
+     * be populated in the Contact object.
+     * @param key 
+     * @param map created by running buildPopulationSet.
+     * @return true if the key data is required
+     */
     protected boolean isRequired(String key, HashMap<String,Boolean> map) {
 		Boolean retVal = map.get(key);
 		return (retVal == null) ? false : retVal.booleanValue();
 	}
     
-	protected HashMap<String,Boolean> buildPopulationSet(JSONArray filter) {
+    /**
+     * Create a hash map of what data needs to be populated in the Contact object
+     * @param fields the list of fields to populate
+     * @return the hash map of required data
+     */
+	protected HashMap<String,Boolean> buildPopulationSet(JSONArray fields) {
 		HashMap<String,Boolean> map = new HashMap<String,Boolean>();
 		
 		String key;
 		try {
-			for (int i=0; i<filter.length(); i++) {
-				key = filter.getString(i);
+			for (int i=0; i<fields.length(); i++) {
+				key = fields.getString(i);
 				if (key.startsWith("displayName")) {
 					map.put("displayName", true);
 				}
@@ -160,6 +178,9 @@ public abstract class ContactAccessor {
      */
 	public abstract boolean remove(String id);
 	
+	/**
+	 * A class that represents the where clause to be used in the database query 
+	 */
 	class WhereOptions {
 		private String where;
 		private String[] whereArgs;

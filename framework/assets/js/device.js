@@ -1,3 +1,11 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ *
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
+
 /**
  * This represents the mobile device, and provides properties for inspecting the model, version, UUID of the
  * phone, etc.
@@ -17,6 +25,7 @@ function Device() {
             me.available = true;
             me.platform = info.platform;
             me.version = info.version;
+            me.name = info.name;
             me.uuid = info.uuid;
             me.phonegap = info.phonegap;
             PhoneGap.onPhoneGapInfoReady.fire();
@@ -49,7 +58,7 @@ Device.prototype.getInfo = function(successCallback, errorCallback) {
     }
 
     // Get info
-    PhoneGap.execAsync(successCallback, errorCallback, "Device", "getDeviceInfo", []);
+    PhoneGap.exec(successCallback, errorCallback, "Device", "getDeviceInfo", []);
 };
 
 /*

@@ -1,3 +1,10 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 package com.phonegap;
 
 import java.util.List;
@@ -6,6 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import com.phonegap.api.PhonegapActivity;
 import com.phonegap.api.Plugin;
 import com.phonegap.api.PluginResult;
 
@@ -53,7 +61,7 @@ public class AccelListener extends Plugin implements SensorEventListener {
 	 * 
 	 * @param ctx The context of the main Activity.
 	 */
-	public void setContext(DroidGap ctx) {
+	public void setContext(PhonegapActivity ctx) {
 		super.setContext(ctx);
         this.sensorManager = (SensorManager) ctx.getSystemService(Context.SENSOR_SERVICE);
 	}

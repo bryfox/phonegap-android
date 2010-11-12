@@ -1,3 +1,10 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ *
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 
 /**
  * This class contains information about any NetworkStatus.
@@ -19,10 +26,10 @@ NetworkStatus.REACHABLE_VIA_WIFI_NETWORK = 2;
 function Network() {
     /**
      * The last known Network status.
-	 * { hostName: string, ipAddress: string, 
-		remoteHostStatus: int(0/1/2), internetConnectionStatus: int(0/1/2), localWiFiConnectionStatus: int (0/2) }
+     * { hostName: string, ipAddress: string,
+        remoteHostStatus: int(0/1/2), internetConnectionStatus: int(0/1/2), localWiFiConnectionStatus: int (0/2) }
      */
-	this.lastReachability = null;
+    this.lastReachability = null;
 };
 
 /**
@@ -46,7 +53,7 @@ Network.prototype.isReachable = function(uri, callback, options) {
     if (options && options.isIpAddress) {
         isIpAddress = options.isIpAddress;
     }
-    PhoneGap.execAsync(callback, null, "Network Status", "isReachable", [uri, isIpAddress]);
+    PhoneGap.exec(callback, null, "Network Status", "isReachable", [uri, isIpAddress]);
 };
 
 PhoneGap.addConstructor(function() {

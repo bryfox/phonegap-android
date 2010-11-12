@@ -1,3 +1,10 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 package com.phonegap;
 
 import java.util.HashMap;
@@ -13,7 +20,7 @@ import android.content.Context;
 import android.media.AudioManager;
 
 /**
- * This class called by DroidGap to play and record audio.  
+ * This class called by PhonegapActivity to play and record audio.  
  * The file can be local or over a network using http.
  * 
  * Audio formats supported (tested):

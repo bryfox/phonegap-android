@@ -1,3 +1,10 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 package com.phonegap;
 
 import java.io.ByteArrayOutputStream;
@@ -38,6 +45,7 @@ public class CameraLauncher extends Plugin {
 	
 	private int mQuality;					// Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
 	private Uri imageUri;					// Uri of captured image 
+	public String callbackId;
 	
     /**
      * Constructor.
@@ -56,6 +64,7 @@ public class CameraLauncher extends Plugin {
 	public PluginResult execute(String action, JSONArray args, String callbackId) {
 		PluginResult.Status status = PluginResult.Status.OK;
 		String result = "";		
+		this.callbackId = callbackId;
 		
 		try {
 			if (action.equals("takePicture")) {
@@ -73,6 +82,9 @@ public class CameraLauncher extends Plugin {
 				else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
 					this.getImage(srcType, destType);
 				}
+				PluginResult r = new PluginResult(PluginResult.Status.NO_RESULT);
+				r.setKeepCallback(true);
+				return r;
 			}
 			return new PluginResult(status, result);
 		} catch (JSONException e) {
@@ -88,7 +100,7 @@ public class CameraLauncher extends Plugin {
 	/**
 	 * Take a picture with the camera.
 	 * When an image is captured or the camera view is cancelled, the result is returned
-	 * in DroidGap.onActivityResult, which forwards the result to this.onActivityResult.
+	 * in PhonegapActivity.onActivityResult, which forwards the result to this.onActivityResult.
 	 * 
 	 * The image can either be returned as a base64 string or a URI that points to the file.
 	 * To display base64 string in an img tag, set the source to:
@@ -183,7 +195,7 @@ public class CameraLauncher extends Plugin {
 						os.close();
 
 						// Send Uri back to JavaScript for viewing image
-						this.sendJavascript("navigator.camera.success('" + uri.toString() + "');");
+						this.success(new PluginResult(PluginResult.Status.OK, uri.toString()), this.callbackId);
 					}
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -220,7 +232,7 @@ public class CameraLauncher extends Plugin {
 				
 				// If sending filename back
 				else if (destType == FILE_URI) {
-					this.sendJavascript("navigator.camera.success('" + uri + "');");
+					this.success(new PluginResult(PluginResult.Status.OK, uri.toString()), this.callbackId);
 				}
 			}
 			else if (resultCode == Activity.RESULT_CANCELED) {
@@ -244,7 +256,7 @@ public class CameraLauncher extends Plugin {
 				byte[] code  = jpeg_data.toByteArray();
 				byte[] output = Base64.encodeBase64(code);
 				String js_out = new String(output);
-				this.sendJavascript("navigator.camera.success('" + js_out + "');");
+				this.success(new PluginResult(PluginResult.Status.OK, js_out), this.callbackId);
 			}	
 		}
 		catch(Exception e) {
@@ -258,6 +270,6 @@ public class CameraLauncher extends Plugin {
 	 * @param err
 	 */
 	public void failPicture(String err) {
-		this.sendJavascript("navigator.camera.error('" + err + "');");
+		this.error(new PluginResult(PluginResult.Status.ERROR, err), this.callbackId);
 	}
 }

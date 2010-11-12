@@ -1,3 +1,10 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ *
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 
 /*
  * This is purely for the Android 1.5/1.6 HTML 5 Storage
@@ -120,7 +127,7 @@ var DatabaseShell = function() {
  * @param successCallback {Function}
  * @param errorCallback {Function}
  */
-DatabaseShell.prototype.transaction = function(process, successCallback, errorCallback) {
+DatabaseShell.prototype.transaction = function(process, errorCallback, successCallback) {
     var tx = new DroidDB_Tx();
     tx.successCallback = successCallback;
     tx.errorCallback = errorCallback;
@@ -256,7 +263,7 @@ DroidDB_Tx.prototype.executeSql = function(sql, params, successCallback, errorCa
     query.errorCallback = errorCallback;
 
     // Call native code
-    PhoneGap.execAsync(null, null, "Storage", "executeSql", [sql, params, query.id]);
+    PhoneGap.exec(null, null, "Storage", "executeSql", [sql, params, query.id]);
 };
 
 /**
@@ -296,7 +303,7 @@ DroidDB_Rows.prototype.item = function(row) {
  * @return                  Database object
  */
 DroidDB_openDatabase = function(name, version, display_name, size) {
-    PhoneGap.execAsync(null, null, "Storage", "openDatabase", [name, version, display_name, size]);
+    PhoneGap.exec(null, null, "Storage", "openDatabase", [name, version, display_name, size]);
     var db = new DatabaseShell();
     return db;
 };

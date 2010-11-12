@@ -1,6 +1,14 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ * 
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
 package com.phonegap;
 
 import java.io.*;
+import java.nio.channels.FileChannel;
 
 import org.apache.commons.codec.binary.Base64;
 import org.json.JSONArray;
@@ -14,13 +22,15 @@ import com.phonegap.api.PluginResult;
  * Only files on the SD card can be accessed.
  */
 public class FileUtils extends Plugin {
+	public static int NOT_FOUND_ERR = 1;
+	public static int SECURITY_ERR = 2;
+	public static int ABORT_ERR = 3;
 
-	public static int NOT_FOUND_ERR = 8;
-	public static int SECURITY_ERR = 18;
-	public static int ABORT_ERR = 20;
-
-	public static int NOT_READABLE_ERR = 24;
-	public static int ENCODING_ERR = 26;
+	public static int NOT_READABLE_ERR = 4;
+	public static int ENCODING_ERR = 5;
+	public static int NO_MODIFICATION_ALLOWED_ERR = 6;
+	public static int INVALID_STATE_ERR = 7;
+	public static int SYNTAX_ERR = 8;
 
 	FileReader f_in;
 	FileWriter f_out;
@@ -29,7 +39,6 @@ public class FileUtils extends Plugin {
 	 * Constructor.
 	 */
 	public FileUtils() {
-		System.out.println("FileUtils()");
 	}
 
 	/**
@@ -109,6 +118,17 @@ public class FileUtils extends Plugin {
 					return new PluginResult(PluginResult.Status.ERROR, FileUtils.NOT_READABLE_ERR);
 				}
 		    }
+			else if (action.equals("truncate")) {
+				try {
+					this.truncateFile(args.getString(0), args.getLong(1));
+				} catch (FileNotFoundException e) {
+					e.printStackTrace();
+					return new PluginResult(PluginResult.Status.ERROR, FileUtils.NOT_FOUND_ERR);
+				} catch (IOException e) {
+					e.printStackTrace();
+					return new PluginResult(PluginResult.Status.ERROR, FileUtils.NOT_READABLE_ERR);
+				}
+		    }
 			return new PluginResult(status, result);
 		} catch (JSONException e) {
 			e.printStackTrace();
@@ -149,7 +169,6 @@ public class FileUtils extends Plugin {
      * @throws FileNotFoundException, IOException
      */
     public String readAsText(String filename, String encoding) throws FileNotFoundException, IOException {
-    	System.out.println("FileUtils.readAsText("+filename+", "+encoding+")");
     	StringBuilder data = new StringBuilder();
    		FileInputStream fis = new FileInputStream(filename);
    		BufferedReader reader = new BufferedReader(new InputStreamReader(fis, encoding), 1024);
@@ -205,5 +224,21 @@ public class FileUtils extends Plugin {
    		out.close();    			
     }
     
+    
+    /**
+     * Truncate the file to size
+     * 
+     * @param filename
+     * @param size
+     * @throws FileNotFoundException, IOException 
+     */
+    private void truncateFile(String filename, long size) throws FileNotFoundException, IOException {
+		RandomAccessFile raf = new RandomAccessFile(filename, "rw");
+		
+		if (raf.length() >= size) {	   			
+   			FileChannel channel = raf.getChannel();
+   			channel.truncate(size);
+		}
+    }
 
 }

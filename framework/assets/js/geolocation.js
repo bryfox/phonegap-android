@@ -1,3 +1,11 @@
+/*
+ * PhoneGap is available under *either* the terms of the modified BSD license *or* the
+ * MIT License (2008). See http://opensource.org/licenses/alphabetical for full text.
+ *
+ * Copyright (c) 2005-2010, Nitobi Software Inc.
+ * Copyright (c) 2010, IBM Corporation
+ */
+
 /**
  * This class provides access to device GPS data.
  * @constructor
@@ -57,7 +65,7 @@ Geolocation.prototype.getCurrentPosition = function(successCallback, errorCallba
         }
     }
     navigator._geo.listeners["global"] = {"success" : successCallback, "fail" : errorCallback };
-    PhoneGap.execAsync(null, null, "Geolocation", "getCurrentLocation", [enableHighAccuracy, timeout, maximumAge]);
+    PhoneGap.exec(null, null, "Geolocation", "getCurrentLocation", [enableHighAccuracy, timeout, maximumAge]);
 }
 
 /**
@@ -89,7 +97,7 @@ Geolocation.prototype.watchPosition = function(successCallback, errorCallback, o
     }
     var id = PhoneGap.createUUID();
     navigator._geo.listeners[id] = {"success" : successCallback, "fail" : errorCallback };
-    PhoneGap.execAsync(null, null, "Geolocation", "start", [id, enableHighAccuracy, timeout, maximumAge]);
+    PhoneGap.exec(null, null, "Geolocation", "start", [id, enableHighAccuracy, timeout, maximumAge]);
     return id;
 };
 
@@ -150,7 +158,7 @@ Geolocation.prototype.fail = function(id, code, msg) {
  * @param {String} id       The ID of the watch returned from #watchPosition
  */
 Geolocation.prototype.clearWatch = function(id) {
-    PhoneGap.execAsync(null, null, "Geolocation", "stop", [id]);
+    PhoneGap.exec(null, null, "Geolocation", "stop", [id]);
     delete navigator._geo.listeners[id];
 };
 
